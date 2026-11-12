@@ -1,3 +1,5 @@
+Структура папок
+Серийный номер тома: 0000005A B653:62B8
 C:\USERS\KIRLL\ANDROIDSTUDIOPROJECTS\PHYSIOGNOMY2\APP\SRC\MAIN
 |   AndroidManifest.xml
 |   
@@ -9,18 +11,29 @@ C:\USERS\KIRLL\ANDROIDSTUDIOPROJECTS\PHYSIOGNOMY2\APP\SRC\MAIN
 |               |   
 |               +---data
 |               |       PhysiognomyCatalog.kt
+|               |       ResultComposer.kt
 |               |       
 |               \---ui
 |                   |   AppRoot.kt
 |                   |   
 |                   +---components
 |                   |       EyeShapeArt.kt
+|                   |       FeatureArt.kt
+|                   |       
+|                   +---debug
+|                   |       ArtQaScreen.kt
+|                   |       
+|                   +---help
+|                   |       HelpScreen.kt
 |                   |       
 |                   +---navigation
 |                   |       AppDestination.kt
 |                   |       
 |                   +---reference
 |                   |       ReferenceScreen.kt
+|                   |       
+|                   +---result
+|                   |       ResultScreen.kt
 |                   |       
 |                   +---settings
 |                   |       SettingsScreen.kt

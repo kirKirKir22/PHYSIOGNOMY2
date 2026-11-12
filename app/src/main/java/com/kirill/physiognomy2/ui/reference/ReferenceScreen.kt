@@ -128,17 +128,3 @@ private fun StepReferenceCard(number: Int, title: String, questions: List<String
         }
     }
 }
-
-@Composable
-fun ReferenceHeader(modifier: Modifier = Modifier) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text("Структура лица", style = MaterialTheme.typography.titleMedium)
-    }
-}

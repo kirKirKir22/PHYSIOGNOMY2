@@ -32,8 +32,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navOptions
+import com.kirill.physiognomy2.ui.help.HelpScreen
 import com.kirill.physiognomy2.ui.navigation.AppDestination
 import com.kirill.physiognomy2.ui.reference.ReferenceScreen
+import com.kirill.physiognomy2.ui.result.ResultScreen
 import com.kirill.physiognomy2.ui.settings.SettingsScreen
 import com.kirill.physiognomy2.ui.theme.ThemeController
 import com.kirill.physiognomy2.ui.workspace.ChecklistScreen
@@ -42,6 +44,8 @@ import com.kirill.physiognomy2.ui.workspace.WorkspaceScreen
 import com.kirill.physiognomy2.ui.workspace.WorkspaceViewModel
 
 private const val CHECKLIST_ROUTE = "checklist"
+private const val RESULT_ROUTE = "result"
+private const val HELP_ROUTE = "help"
 
 @Composable
 fun AppRoot(themeController: ThemeController) {
@@ -49,6 +53,7 @@ fun AppRoot(themeController: ThemeController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val currentDestination = AppDestination.fromRoute(currentRoute)
+    val isOverlay = currentRoute == CHECKLIST_ROUTE || currentRoute == RESULT_ROUTE || currentRoute == HELP_ROUTE
 
     val workspaceViewModel: WorkspaceViewModel = viewModel()
 
@@ -66,6 +71,8 @@ fun AppRoot(themeController: ThemeController) {
     }
 
     val openChecklist: () -> Unit = { navController.navigate(CHECKLIST_ROUTE) }
+    val openResult: () -> Unit = { navController.navigate(RESULT_ROUTE) }
+    val openHelp: () -> Unit = { navController.navigate(HELP_ROUTE) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -85,7 +92,7 @@ fun AppRoot(themeController: ThemeController) {
                     tonalElevation = 0.dp,
                 ) {
                     AppDestination.entries.forEach { destination ->
-                        val selected = destination == currentDestination && currentRoute != CHECKLIST_ROUTE
+                        val selected = destination == currentDestination && !isOverlay
                         NavigationBarItem(
                             selected = selected,
                             onClick = { openDestination(destination) },
@@ -116,7 +123,7 @@ fun AppRoot(themeController: ThemeController) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = AppDestination.Workspace.route,
+            startDestination = "art-qa",
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -128,8 +135,10 @@ fun AppRoot(themeController: ThemeController) {
         ) {
             composable(AppDestination.Workspace.route) {
                 WorkspaceScreen(
-                    viewModel = workspaceViewModel,
                     onOpenChecklist = openChecklist,
+                    onOpenHelp = openHelp,
+                    onOpenResult = openResult,
+                    viewModel = workspaceViewModel,
                 )
             }
             composable(AppDestination.Profiles.route) {
@@ -137,8 +146,20 @@ fun AppRoot(themeController: ThemeController) {
                     profiles = workspaceViewModel.profiles,
                     answered = workspaceViewModel.answeredTotal,
                     total = workspaceViewModel.totalQuestions,
-                    onSave = { workspaceViewModel.saveCurrentProfile() },
+                    activeProfileId = workspaceViewModel.activeProfileId,
+                    activeProfileName = workspaceViewModel.activeProfileName,
+                    onSave = { name -> workspaceViewModel.saveCurrentProfile(name) },
+                    onOpen = { profile ->
+                        workspaceViewModel.loadProfile(profile)
+                        openDestination(AppDestination.Workspace)
+                    },
                     onDelete = workspaceViewModel::deleteProfile,
+                    onRenameActive = workspaceViewModel::renameActiveProfile,
+                    onStartNew = {
+                        workspaceViewModel.startNewProfile()
+                        workspaceViewModel.resetAnswers()
+                        openDestination(AppDestination.Workspace)
+                    },
                 )
             }
             composable(AppDestination.Reference.route) {
@@ -164,7 +185,25 @@ fun AppRoot(themeController: ThemeController) {
                         navController.popBackStack()
                     },
                     onResetAnswers = workspaceViewModel::resetAnswers,
+                    onBack = { navController.popBackStack() },
+                    onOpenHelp = openHelp,
+                    onOpenResult = openResult,
                 )
+            }
+            composable(RESULT_ROUTE) {
+                ResultScreen(
+                    answers = workspaceViewModel.answers,
+                    activeProfileName = workspaceViewModel.activeProfileName,
+                    isSavedProfile = workspaceViewModel.activeProfileId != null,
+                    onBack = { navController.popBackStack() },
+                    onSaveProfile = { name -> workspaceViewModel.saveCurrentProfile(name) },
+                )
+            }
+            composable(HELP_ROUTE) {
+                HelpScreen(onBack = { navController.popBackStack() })
+            }
+            composable("art-qa") {
+                com.kirill.physiognomy2.ui.debug.ArtQaScreen()
             }
         }
     }

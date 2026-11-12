@@ -5,11 +5,14 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -74,6 +78,7 @@ fun PhotoStage(
     photos: List<PhotoItem>,
     currentIndex: Int,
     effectsEnabled: Boolean,
+    photosRemaining: Int,
     onPickPhotos: (List<android.net.Uri>) -> Unit,
     onSelectPhoto: (Int) -> Unit,
     onBrightness: (Float) -> Unit,
@@ -83,17 +88,24 @@ fun PhotoStage(
     onResetPhoto: () -> Unit,
     onDeletePhoto: () -> Unit,
     onToggleEffects: () -> Unit,
+    onLimitReached: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val photo = photos.getOrNull(currentIndex)
     var fullscreen by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
     val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(10),
+        contract = ActivityResultContracts.PickMultipleVisualMedia(MAX_PICK_COUNT),
     ) { uris -> onPickPhotos(uris) }
 
+    val canPick = photosRemaining > 0
     val launchPicker = {
-        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        if (canPick) {
+            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } else {
+            onLimitReached()
+        }
     }
 
     Column(modifier = modifier) {
@@ -102,7 +114,12 @@ fun PhotoStage(
                 .fillMaxWidth()
                 .weight(1f)
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF0B0B10)),
+                .background(Color(0xFF0B0B10))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant,
+                    RoundedCornerShape(24.dp),
+                ),
         ) {
             if (photo == null) {
                 EmptyPhotoState(onPick = { launchPicker() })
@@ -134,14 +151,14 @@ fun PhotoStage(
                 RoundIconButton(
                     icon = Icons.Filled.DeleteOutline,
                     description = "Удалить фото",
-                    onClick = onDeletePhoto,
+                    onClick = { confirmDelete = true },
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(8.dp),
                 )
 
                 RoundIconButton(
-                    icon = if (fullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                    icon = Icons.Filled.Fullscreen,
                     description = "На весь экран",
                     onClick = { fullscreen = true },
                     modifier = Modifier
@@ -182,6 +199,7 @@ fun PhotoStage(
             Spacer(Modifier.height(8.dp))
             PhotoToolsBar(
                 photo = photo,
+                photosRemaining = photosRemaining,
                 onPick = { launchPicker() },
                 onBrightness = onBrightness,
                 onContrast = onContrast,
@@ -190,6 +208,27 @@ fun PhotoStage(
                 onResetPhoto = onResetPhoto,
             )
         }
+    }
+
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Удалить фото?") },
+            text = { Text("Снимок будет удалён с устройства без возможности восстановления.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        onDeletePhoto()
+                    },
+                ) { Text("Удалить") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) {
+                    Text("Отмена")
+                }
+            },
+        )
     }
 
     if (fullscreen && photo != null) {
@@ -226,6 +265,7 @@ fun PhotoStage(
 @Composable
 private fun PhotoToolsBar(
     photo: PhotoItem,
+    photosRemaining: Int,
     onPick: () -> Unit,
     onBrightness: (Float) -> Unit,
     onContrast: (Float) -> Unit,
@@ -238,7 +278,12 @@ private fun PhotoToolsBar(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            ToolChip(Icons.Filled.AddPhotoAlternate, "Сменить", onClick = onPick)
+            ToolChip(
+                icon = Icons.Filled.AddPhotoAlternate,
+                label = if (photosRemaining > 0) "Добавить" else "Лимит",
+                enabled = photosRemaining > 0,
+                onClick = onPick,
+            )
             ToolChip(
                 Icons.Filled.FilterBAndW,
                 "Ч/Б",
@@ -280,10 +325,14 @@ private fun ToolChip(
     icon: ImageVector,
     label: String,
     active: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Surface(
-        onClick = onClick,
+        onClick = {
+            if (enabled) onClick()
+        },
+        enabled = enabled,
         shape = RoundedCornerShape(50),
         color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
         else MaterialTheme.colorScheme.surfaceContainerLow,
@@ -384,7 +433,28 @@ private fun PhotoCanvas(
     var scale by remember(photo.path) { mutableFloatStateOf(1f) }
     var rotation by remember(photo.path) { mutableFloatStateOf(0f) }
     var offset by remember(photo.path) { mutableStateOf(Offset.Zero) }
+    var lastTapAt by remember(photo.path) { mutableLongStateOf(0L) }
     val swipeThreshold = with(LocalDensity.current) { 26.dp.toPx() }
+
+    val toggleZoom = {
+        if (scale > 1.01f) {
+            scale = 1f
+            offset = Offset.Zero
+            rotation = 0f
+        } else {
+            scale = 2f
+        }
+    }
+
+    val handleTap = {
+        val now = System.currentTimeMillis()
+        if (now - lastTapAt <= DOUBLE_TAP_MS) {
+            lastTapAt = 0L
+            toggleZoom()
+        } else {
+            lastTapAt = now
+        }
+    }
 
     val colorFilter = remember(photo, effectsEnabled) {
         if (!effectsEnabled) null else photo.toColorFilter()
@@ -392,63 +462,61 @@ private fun PhotoCanvas(
 
     Box(
         modifier = modifier
-            .pointerInput(photo.path, scale) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        if (scale > 1.01f) {
-                            scale = 1f
-                            offset = Offset.Zero
-                            rotation = 0f
-                        } else {
-                            scale = 2f
-                        }
-                    },
-                )
-            }
-            .pointerInput(photosCount) {
+            .pointerInput(photo.path, photosCount) {
+                var lastSwipeAt = 0L
                 awaitEachGesture {
-                    awaitPointerEvent()
-                    var accumulatedSwipe = 0f
-                    var multiTouch = false
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var zoomed = scale > 1.01f
+                    var swiped = false
+                    var accumulatedX = 0f
+                    var lastEventTime = down.uptimeMillis
+                    var tapped = true
+
                     do {
                         val event = awaitPointerEvent()
-                        val pressedCount = event.changes.count { it.pressed }
-                        if (pressedCount >= 2) multiTouch = true
+                        val changes = event.changes
+                        val pressedCount = changes.count { it.pressed }
+                        val zoom = event.calculateZoom()
+                        val rotationDelta = event.calculateRotation()
+                        val pan = event.calculatePan()
 
-                        if (multiTouch && scale > 1f) {
-                            val zoom = event.calculateZoom()
-                            val rotate = event.calculateRotation()
-                            val pan = event.calculatePan()
+                        if (pressedCount >= 2) {
+                            tapped = false
+                            zoomed = true
                             scale = (scale * zoom).coerceIn(1f, 5f)
-                            rotation += rotate
+                            rotation += rotationDelta
                             offset += pan
-                            event.changes.forEach { if (it.pressed) it.consume() }
-                        } else if (multiTouch) {
-                            val zoom = event.calculateZoom()
-                            val rotate = event.calculateRotation()
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                            rotation += rotate
-                            event.changes.forEach { if (it.pressed) it.consume() }
+                            changes.forEach { if (it.pressed) it.consume() }
                         } else if (pressedCount == 1) {
-                            val change = event.changes.first { it.pressed }
+                            val change = changes.first { it.pressed }
                             val delta = change.positionChange()
-                            if (scale > 1.01f) {
-                                if (delta != Offset.Zero) {
+                            if (delta != Offset.Zero) {
+                                tapped = false
+                                if (zoomed || scale > 1.01f) {
                                     offset += delta
                                     change.consume()
-                                }
-                            } else {
-                                accumulatedSwipe += delta.x
-                                if (abs(accumulatedSwipe) > swipeThreshold) {
-                                    val direction = if (accumulatedSwipe > 0) 1 else -1
-                                    val target = currentIndex - direction
-                                    if (target in 0 until photosCount) onSelectPhoto(target)
-                                    accumulatedSwipe = 0f
-                                    change.consume()
+                                } else {
+                                    accumulatedX += delta.x
+                                    if (abs(accumulatedX) > swipeThreshold && !swiped) {
+                                        swiped = true
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastSwipeAt > 180) {
+                                            lastSwipeAt = now
+                                            val target = if (accumulatedX > 0) currentIndex - 1 else currentIndex + 1
+                                            if (target in 0 until photosCount) onSelectPhoto(target)
+                                        }
+                                        change.consume()
+                                    }
                                 }
                             }
                         }
+
+                        lastEventTime = event.changes.firstOrNull()?.uptimeMillis ?: lastEventTime
                     } while (event.changes.any { it.pressed })
+
+                    if (tapped) {
+                        handleTap()
+                    }
 
                     if (scale <= 1.01f) {
                         offset = Offset.Zero
@@ -494,8 +562,7 @@ private fun AxisLine(color: Color, modifier: Modifier = Modifier) {
     }
 }
 
-private fun PhotoItem.toColorFilter(): ColorFilter {
-    val brightness = this.brightness * 255f
+private fun PhotoItem.toColorFilter(): ColorFilter {    val brightness = this.brightness * 255f
     val contrast = this.contrast
     val shift = 128f * (1f - contrast) + brightness
     val values = if (grayscale) {
@@ -518,6 +585,9 @@ private fun PhotoItem.toColorFilter(): ColorFilter {
     }
     return ColorFilter.colorMatrix(ColorMatrix(values))
 }
+
+private const val MAX_PICK_COUNT = 10
+private const val DOUBLE_TAP_MS = 280L
 
 @Composable
 private fun EmptyPhotoState(onPick: () -> Unit) {

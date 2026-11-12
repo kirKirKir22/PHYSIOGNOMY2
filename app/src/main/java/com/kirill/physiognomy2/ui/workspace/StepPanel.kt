@@ -2,7 +2,10 @@ package com.kirill.physiognomy2.ui.workspace
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +32,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -40,13 +45,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kirill.physiognomy2.data.AnswerOption
 import com.kirill.physiognomy2.data.PhysiognomyCatalog
 import com.kirill.physiognomy2.data.Step
-import com.kirill.physiognomy2.ui.components.EyeShapeArt
+import com.kirill.physiognomy2.ui.components.FeatureArt
+import com.kirill.physiognomy2.ui.components.FeatureArtKind
 
 @Composable
 fun StepPanel(
@@ -58,13 +65,21 @@ fun StepPanel(
     answerFor: (String) -> String?,
     onFocusQuestion: (Int) -> Unit,
     onSelect: (String, String) -> Unit,
+    onClear: (String) -> Unit,
     onBack: () -> Unit,
     onNext: () -> Unit,
+    onSkip: () -> Unit,
     onOpenChecklist: () -> Unit,
+    onOpenHelp: () -> Unit,
+    onOpenResult: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val question = step.questions[questionIndex.coerceIn(0, step.questions.lastIndex)]
     val selectedId = answerFor(question.id)
+    val selectedOption = question.options.firstOrNull { it.id == selectedId }
+    val artKind = featureKindFor(step.number)
+    val visualOptions = step.number == 3 && questionIndex == 0
+    val isLastStep = step.number >= PhysiognomyCatalog.steps.size
 
     Column(
         modifier = modifier
@@ -85,19 +100,20 @@ fun StepPanel(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(CircleShape)
-                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
-                    contentAlignment = Alignment.Center,
+                Surface(
+                    onClick = onOpenHelp,
+                    shape = CircleShape,
+                    color = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                        contentDescription = "Подсказка",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(15.dp),
-                    )
+                    Box(modifier = Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                            contentDescription = "Как пользоваться",
+                            modifier = Modifier.size(15.dp),
+                        )
+                    }
                 }
             }
 
@@ -127,8 +143,26 @@ fun StepPanel(
             OptionGrid(
                 options = question.options,
                 selectedId = selectedId,
-                onSelect = { option -> onSelect(question.id, option.id) },
+                artKind = artKind,
+                visual = visualOptions,
+                onSelect = { option ->
+                    if (option.id == selectedId) onClear(question.id)
+                    else onSelect(question.id, option.id)
+                },
             )
+
+            AnimatedVisibility(
+                visible = selectedOption != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    selectedOption?.let {
+                        InterpretationCard(option = it, onClear = { onClear(question.id) })
+                    }
+                }
+            }
 
             Spacer(Modifier.height(14.dp))
             SelectedSummary(
@@ -137,9 +171,44 @@ fun StepPanel(
                 onOpenChecklist = onOpenChecklist,
             )
             Spacer(Modifier.height(16.dp))
+
+            if (isLastStep) {
+                Surface(
+                    onClick = onOpenResult,
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("ГОТОВО", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.1.sp))
+                            Text(
+                                "Собрать итоговый портрет",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
         }
 
         Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = 1.dp,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
             ProgressBlock(
                 answeredInStep = answeredInStep,
                 questionsInStep = step.questions.size,
@@ -150,7 +219,7 @@ fun StepPanel(
 
             Spacer(Modifier.height(12.dp))
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 ActionButton(
@@ -158,19 +227,67 @@ fun StepPanel(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     filled = false,
                     onClick = onBack,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(0.9f),
                 )
-                ActionButton(
-                    label = "ДАЛЕЕ",
-                    icon = Icons.AutoMirrored.Filled.ArrowForward,
-                    iconAtEnd = true,
-                    filled = true,
-                    onClick = onNext,
-                    modifier = Modifier.weight(1.25f),
-                )
+                if (selectedId == null) {
+                    ActionButton(
+                        label = "ПРОПУСК",
+                        icon = Icons.Filled.SkipNext,
+                        filled = false,
+                        onClick = onSkip,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (isLastStep) {
+                    ActionButton(
+                        label = "ИТОГ",
+                        icon = Icons.Filled.Check,
+                        filled = true,
+                        onClick = onOpenResult,
+                        modifier = Modifier.weight(1.15f),
+                    )
+                } else {
+                    ActionButton(
+                        label = "ДАЛЕЕ",
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
+                        iconAtEnd = true,
+                        filled = true,
+                        onClick = onNext,
+                        modifier = Modifier.weight(1.15f),
+                    )
+                }
             }
         }
     }
+}
+
+fun featureKindFor(stepNumber: Int): FeatureArtKind = when (stepNumber) {
+    1 -> FeatureArtKind.Forehead
+    2 -> FeatureArtKind.Brows
+    3 -> FeatureArtKind.Eyes
+    4 -> FeatureArtKind.Eyelids
+    5 -> FeatureArtKind.Lashes
+    6 -> FeatureArtKind.Bags
+    7 -> FeatureArtKind.Nose
+    8 -> FeatureArtKind.Ears
+    9 -> FeatureArtKind.Cheeks
+    10 -> FeatureArtKind.Mouth
+    11 -> FeatureArtKind.Lips
+    12 -> FeatureArtKind.Teeth
+    13 -> FeatureArtKind.Smile
+    14 -> FeatureArtKind.Jaw
+    15 -> FeatureArtKind.Chin
+    16 -> FeatureArtKind.ChinBrows
+    17 -> FeatureArtKind.Dimples
+    18 -> FeatureArtKind.Wrinkles
+    19 -> FeatureArtKind.Beard
+    20 -> FeatureArtKind.FaceShape
+    21 -> FeatureArtKind.FaceType
+    22 -> FeatureArtKind.FaceType
+    23 -> FeatureArtKind.Zones
+    24 -> FeatureArtKind.Profile
+    25 -> FeatureArtKind.Profile
+    else -> FeatureArtKind.HeadShape
 }
 
 @Composable
@@ -206,12 +323,24 @@ private fun QuestionChips(
                 color = background,
                 contentColor = contentColor,
             ) {
-                Text(
-                    text = "${index + 1}. ${question.title}",
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
+                Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${index + 1}. ${question.title}",
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                    )
+                    if (selected && !active) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -221,15 +350,11 @@ private fun QuestionChips(
 private fun OptionGrid(
     options: List<AnswerOption>,
     selectedId: String?,
+    artKind: FeatureArtKind,
+    visual: Boolean,
     onSelect: (AnswerOption) -> Unit,
 ) {
-    val visual = options.all { it.eyeShape != null } && options.size <= 6
-    val longest = options.maxOfOrNull { it.label.length } ?: 0
-    val columns = when {
-        visual -> 3
-        longest <= 22 -> 2
-        else -> 1
-    }
+    val columns = if (visual) 3 else 1
     val rows = options.chunked(columns)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -238,8 +363,10 @@ private fun OptionGrid(
                 row.forEach { option ->
                     OptionCard(
                         option = option,
+                        optionIndex = options.indexOf(option),
                         selected = option.id == selectedId,
-                        showArt = visual,
+                        artKind = artKind,
+                        visual = visual,
                         onClick = { onSelect(option) },
                         modifier = Modifier.weight(1f),
                     )
@@ -255,8 +382,10 @@ private fun OptionGrid(
 @Composable
 private fun OptionCard(
     option: AnswerOption,
+    optionIndex: Int,
     selected: Boolean,
-    showArt: Boolean,
+    artKind: FeatureArtKind,
+    visual: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -274,38 +403,78 @@ private fun OptionCard(
     else MaterialTheme.colorScheme.onSurface
 
     Box(modifier = modifier) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(containerColor)
                 .border(if (selected) 1.6.dp else 1.dp, borderColor, RoundedCornerShape(14.dp))
                 .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = if (showArt) 12.dp else 9.dp),
-            horizontalAlignment = if (showArt) Alignment.CenterHorizontally else Alignment.Start,
-            verticalArrangement = Arrangement.Center,
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (showArt && option.eyeShape != null) {
-                EyeShapeArt(shape = option.eyeShape, color = contentColor)
-                Spacer(Modifier.height(8.dp))
+            if (visual) {
+                FeatureArt(
+                    kind = artKind,
+                    variant = optionIndex,
+                    label = option.label,
+                    color = contentColor,
+                    eyeShape = option.eyeShape,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(width = 44.dp, height = 34.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    FeatureArt(
+                        kind = artKind,
+                        variant = optionIndex,
+                        label = option.label,
+                        color = if (selected) contentColor
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        eyeShape = option.eyeShape,
+                        modifier = Modifier.size(width = 38.dp, height = 28.dp),
+                        strokeWidth = 1.2f,
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
             }
-            Text(
-                text = option.label,
-                style = if (showArt) {
-                    MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        letterSpacing = 0.1.sp,
+            Column(
+                modifier = if (visual) Modifier.fillMaxWidth() else Modifier.weight(1f),
+                horizontalAlignment = if (visual) Alignment.CenterHorizontally else Alignment.Start,
+            ) {
+                if (visual) Spacer(Modifier.height(6.dp))
+                Text(
+                    text = option.label,
+                    style = if (visual) {
+                        MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            letterSpacing = 0.1.sp,
+                        )
+                    } else {
+                        MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    },
+                    color = contentColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = if (visual) TextAlign.Center else TextAlign.Start,
+                )
+                if (!visual && selected) {
+                    Text(
+                        text = option.traits.firstOrNull().orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                } else {
-                    MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                    )
-                },
-                color = contentColor,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = if (showArt) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start,
-            )
+                }
+            }
         }
 
         if (selected) {
@@ -313,7 +482,7 @@ private fun OptionCard(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
-                    .size(18.dp)
+                    .size(17.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center,
@@ -322,10 +491,78 @@ private fun OptionCard(
                     imageVector = Icons.Filled.Check,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(11.dp),
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun InterpretationCard(option: AnswerOption, onClear: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                RoundedCornerShape(16.dp),
+            )
+            .padding(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "ЧТО ЭТО ЗНАЧИТ",
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.1.sp),
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "Сбросить",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onClear)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = option.label,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(8.dp))
+        if (option.traits.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                option.traits.forEach { trait ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = trait,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        Text(
+            text = option.description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -372,14 +609,13 @@ private fun SelectedSummary(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             answered.forEachIndexed { index, entry ->
-                val label = entry.second
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 ) {
                     Text(
-                        text = "${index + 1}. ${entry.first.title}: $label",
+                        text = "${index + 1}. ${entry.first.title}: ${entry.second}",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -400,7 +636,14 @@ private fun ProgressBlock(
     onOpenChecklist: () -> Unit,
 ) {
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onOpenChecklist)
+                .padding(vertical = 2.dp),
+        ) {
             Text(
                 text = "ПРОГРЕСС",
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.1.sp),
@@ -411,6 +654,12 @@ private fun ProgressBlock(
                 text = "$totalAnswered / $totalQuestions",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = "Открыть чек-лист",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(15.dp),
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -450,22 +699,23 @@ private fun ActionButton(
             modifier = modifier,
         ) {
             Row(
-                modifier = Modifier.padding(vertical = 13.dp),
+                modifier = Modifier.padding(vertical = 13.dp, horizontal = 4.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (!iconAtEnd) {
-                    Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(5.dp))
                 }
-                Text(text = label, style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 if (iconAtEnd) {
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
+                    Spacer(Modifier.width(5.dp))
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp))
                 }
             }
         }
@@ -479,13 +729,18 @@ private fun ActionButton(
             modifier = modifier,
         ) {
             Row(
-                modifier = Modifier.padding(vertical = 13.dp),
+                modifier = Modifier.padding(vertical = 13.dp, horizontal = 4.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(text = label, style = MaterialTheme.typography.labelLarge)
+                Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

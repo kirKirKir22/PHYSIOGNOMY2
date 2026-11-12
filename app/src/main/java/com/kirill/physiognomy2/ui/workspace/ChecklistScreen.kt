@@ -1,5 +1,6 @@
 package com.kirill.physiognomy2.ui.workspace
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +18,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kirill.physiognomy2.data.PhysiognomyCatalog
 import com.kirill.physiognomy2.data.Section
+import com.kirill.physiognomy2.ui.help.HelpBadge
 
 @Composable
 fun ChecklistScreen(
@@ -41,11 +46,15 @@ fun ChecklistScreen(
     currentStep: Int,
     onOpenStep: (Int) -> Unit,
     onResetAnswers: () -> Unit,
+    onBack: () -> Unit,
+    onOpenHelp: () -> Unit,
+    onOpenResult: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val totalQuestions = PhysiognomyCatalog.totalQuestions
     val answered = answers.size
     val progress = if (totalQuestions == 0) 0f else answered.toFloat() / totalQuestions
+    val missingCount = totalQuestions - answered
 
     Column(
         modifier = modifier
@@ -53,12 +62,34 @@ fun ChecklistScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        Text(
-            text = "ЧЕК-ЛИСТ",
-            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.4.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                onClick = onBack,
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ) {
+                Box(
+                    modifier = Modifier.size(34.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Назад",
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "ЧЕК-ЛИСТ",
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.4.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.weight(1f))
+            HelpBadge(onClick = onOpenHelp)
+        }
+        Spacer(Modifier.height(10.dp))
         Text(
             text = "Исследование лица",
             style = MaterialTheme.typography.displaySmall,
@@ -100,24 +131,53 @@ fun ChecklistScreen(
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
                 )
+                if (missingCount > 0) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "Не отмечено: $missingCount. Это нормально — пропущенные черты просто не войдут в вывод.",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.height(14.dp))
-                Surface(
-                    onClick = { onOpenStep(currentStep) },
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        onClick = { onOpenStep(currentStep) },
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
                     ) {
-                        Text("Продолжить", style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Продолжить", style = MaterialTheme.typography.labelLarge)
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                    Surface(
+                        onClick = onOpenResult,
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Assignment,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Итог", style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
             }
@@ -137,6 +197,7 @@ fun ChecklistScreen(
                 val stepAnswered = step.questions.count { answers.containsKey(it.id) }
                 val complete = stepAnswered == step.questions.size
                 val isCurrent = step.number == currentStep
+                val skipped = stepAnswered == 0
 
                 Surface(
                     onClick = { onOpenStep(step.number) },
@@ -144,7 +205,7 @@ fun ChecklistScreen(
                     color = if (isCurrent) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                     else MaterialTheme.colorScheme.surfaceContainerLow,
                     border = if (isCurrent) {
-                        androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                        BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                     } else null,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -192,7 +253,11 @@ fun ChecklistScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = "$stepAnswered из ${step.questions.size} вопросов",
+                                text = if (skipped) {
+                                    "Пропущено · ${step.questions.size} вопр."
+                                } else {
+                                    "$stepAnswered из ${step.questions.size} вопросов"
+                                },
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -211,11 +276,13 @@ fun ChecklistScreen(
             Spacer(Modifier.height(14.dp))
         }
 
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(Modifier.height(12.dp))
         Surface(
             onClick = onResetAnswers,
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Row(

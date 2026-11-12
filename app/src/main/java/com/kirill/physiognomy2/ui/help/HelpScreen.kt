@@ -92,7 +92,7 @@ fun HelpScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             icon = Icons.Filled.BrightnessMedium,
             title = "Подготовьте снимок",
             text = "Яркость и контраст, ч/б и зеркало помогают разглядеть детали." +
-                    " Кнопка «Эффекты» мгновенно возвращает оригинал для сравнения.",
+                    " Кнопка «Эффекты» возвращает оригинал для сравнения.",
         )
         HelpStep(
             number = "3",

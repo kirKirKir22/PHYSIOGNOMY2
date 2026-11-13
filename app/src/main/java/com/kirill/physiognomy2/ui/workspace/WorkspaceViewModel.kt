@@ -16,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.kirill.physiognomy2.data.AppLimits
 import com.kirill.physiognomy2.data.PhysiognomyCatalog
 import com.kirill.physiognomy2.data.Question
 import com.kirill.physiognomy2.data.Step
@@ -74,10 +75,10 @@ class WorkspaceViewModel(application: Application) : AndroidViewModel(applicatio
         private set
 
     val isAtPhotoLimit: Boolean
-        get() = photos.size >= MAX_PHOTOS
+        get() = photos.size >= AppLimits.MAX_PHOTOS
 
     val photosRemaining: Int
-        get() = (MAX_PHOTOS - photos.size).coerceAtLeast(0)
+        get() = (AppLimits.MAX_PHOTOS - photos.size).coerceAtLeast(0)
 
     val step: Step
         get() = PhysiognomyCatalog.step(stepNumber)
@@ -110,6 +111,11 @@ class WorkspaceViewModel(application: Application) : AndroidViewModel(applicatio
     fun answeredInStep(number: Int = stepNumber): Int {
         val target = PhysiognomyCatalog.step(number)
         return target.questions.count { answers.containsKey(it.id) }
+    }
+
+    fun answeredFlagsFor(number: Int = stepNumber): List<Boolean> {
+        val target = PhysiognomyCatalog.step(number)
+        return target.questions.map { answers.containsKey(it.id) }
     }
 
     fun answerFor(questionId: String): String? = answers[questionId]
@@ -177,12 +183,12 @@ class WorkspaceViewModel(application: Application) : AndroidViewModel(applicatio
         if (uris.isEmpty()) return
         val remaining = photosRemaining
         if (remaining <= 0) {
-            photoNotice = "Достигнут лимит: $MAX_PHOTOS фото. Удалите лишние, чтобы добавить новые."
+            photoNotice = "Достигнут лимит: ${AppLimits.MAX_PHOTOS} фото. Удалите лишние, чтобы добавить новые."
             return
         }
         val accepted = uris.take(remaining)
         if (accepted.size < uris.size) {
-            photoNotice = "Добавлено ${accepted.size} из ${uris.size}: лимит $MAX_PHOTOS фото."
+            photoNotice = "Добавлено ${accepted.size} из ${uris.size}: лимит ${AppLimits.MAX_PHOTOS} фото."
         }
         val app = getApplication<Application>()
         viewModelScope.launch {
@@ -390,6 +396,7 @@ class WorkspaceViewModel(application: Application) : AndroidViewModel(applicatio
             )
             val index = profiles.indexOf(existing)
             if (index >= 0) profiles[index] = updated
+            activeProfileName = updated.name
             persistProfiles()
             return updated
         }
@@ -401,6 +408,9 @@ class WorkspaceViewModel(application: Application) : AndroidViewModel(applicatio
             answers = answers.toMap(),
         )
         profiles.add(0, profile)
+        activeProfileId = profile.id
+        activeProfileName = profile.name
+        prefs.edit().putString(KEY_ACTIVE_PROFILE, profile.id).apply()
         persistProfiles()
         return profile
     }
@@ -575,7 +585,6 @@ class WorkspaceViewModel(application: Application) : AndroidViewModel(applicatio
         const val KEY_PROFILES = "profiles"
         const val KEY_EFFECTS = "effects"
         const val KEY_ACTIVE_PROFILE = "active_profile"
-        const val MAX_PHOTOS = 10
         const val MAX_PHOTO_SIDE = 1800
         const val PHOTO_QUALITY = 88
         val PROFILE_NAME_PATTERN = Regex("""Профиль (\d+)""")

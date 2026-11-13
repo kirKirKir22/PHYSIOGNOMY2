@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.kirill.physiognomy2.data.AppLimits
 import kotlin.math.abs
 
 @Composable
@@ -102,7 +103,7 @@ fun PhotoStage(
     var confirmDelete by remember { mutableStateOf(false) }
 
     val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(MAX_PICK_COUNT),
+        contract = ActivityResultContracts.PickMultipleVisualMedia(AppLimits.MAX_PHOTOS),
     ) { uris -> onPickPhotos(uris) }
 
     val canPick = photosRemaining > 0
@@ -713,7 +714,6 @@ private fun PhotoItem.toColorFilter(): ColorFilter {    val brightness = this.br
     return ColorFilter.colorMatrix(ColorMatrix(values))
 }
 
-private const val MAX_PICK_COUNT = 10
 private const val DOUBLE_TAP_MS = 280L
 
 @Composable
@@ -739,7 +739,7 @@ private fun EmptyPhotoState(onPick: () -> Unit) {
         )
         Spacer(Modifier.height(5.dp))
         Text(
-            text = "До 10 фото, портрет строго анфас.\nЛицо должно быть хорошо освещено.",
+            text = "До ${AppLimits.MAX_PHOTOS} фото, портрет строго анфас.\nЛицо должно быть хорошо освещено.",
             style = MaterialTheme.typography.bodyMedium,
             color = Color.White.copy(alpha = 0.55f),
             textAlign = TextAlign.Center,

@@ -60,7 +60,7 @@ import com.kirill.physiognomy2.ui.components.FeatureArtKind
 fun StepPanel(
     step: Step,
     questionIndex: Int,
-    answeredInStep: Int,
+    answeredFlags: List<Boolean>,
     totalAnswered: Int,
     totalQuestions: Int,
     answerFor: (String) -> String?,
@@ -213,7 +213,7 @@ fun StepPanel(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             ProgressBlock(
-                answeredInStep = answeredInStep,
+                answeredFlags = answeredFlags,
                 questionsInStep = step.questions.size,
                 totalAnswered = totalAnswered,
                 totalQuestions = totalQuestions,
@@ -670,7 +670,7 @@ private fun SelectedSummary(
 
 @Composable
 private fun ProgressBlock(
-    answeredInStep: Int,
+    answeredFlags: List<Boolean>,
     questionsInStep: Int,
     totalAnswered: Int,
     totalQuestions: Int,
@@ -706,7 +706,7 @@ private fun ProgressBlock(
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             repeat(questionsInStep) { index ->
-                val filled = index < answeredInStep
+                val filled = answeredFlags.getOrElse(index) { false }
                 Box(
                     modifier = Modifier
                         .weight(1f)

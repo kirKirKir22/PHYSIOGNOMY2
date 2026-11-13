@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.kirill.physiognomy2.data.AppLimits
 
 @Composable
 fun WorkspaceScreen(
@@ -70,7 +71,7 @@ fun WorkspaceScreen(
                 onDeletePhoto = viewModel::deleteCurrentPhoto,
                 onToggleEffects = viewModel::toggleEffects,
                 onLimitReached = {
-                    viewModel.showPhotoNotice("Достигнут лимит: 10 фото. Удалите лишние, чтобы добавить новые.")
+                    viewModel.showPhotoNotice("Достигнут лимит: ${AppLimits.MAX_PHOTOS} фото. Удалите лишние, чтобы добавить новые.")
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -85,7 +86,7 @@ fun WorkspaceScreen(
                 StepPanel(
                     step = step,
                     questionIndex = questionIndex,
-                    answeredInStep = viewModel.answeredInStep(),
+                    answeredFlags = viewModel.answeredFlagsFor(),
                     totalAnswered = viewModel.answeredTotal,
                     totalQuestions = viewModel.totalQuestions,
                     answerFor = viewModel::answerFor,

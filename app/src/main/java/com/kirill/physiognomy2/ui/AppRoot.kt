@@ -123,7 +123,7 @@ fun AppRoot(themeController: ThemeController) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "art-qa",
+            startDestination = AppDestination.Workspace.route,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -201,9 +201,6 @@ fun AppRoot(themeController: ThemeController) {
             }
             composable(HELP_ROUTE) {
                 HelpScreen(onBack = { navController.popBackStack() })
-            }
-            composable("art-qa") {
-                com.kirill.physiognomy2.ui.debug.ArtQaScreen()
             }
         }
     }

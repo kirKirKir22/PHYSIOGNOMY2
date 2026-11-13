@@ -3,6 +3,7 @@ package com.kirill.physiognomy2.ui.workspace
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,21 +12,18 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
@@ -39,17 +37,22 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableFloatState
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -68,6 +72,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
@@ -83,6 +88,7 @@ fun PhotoStage(
     onSelectPhoto: (Int) -> Unit,
     onBrightness: (Float) -> Unit,
     onContrast: (Float) -> Unit,
+    onCommitEdits: () -> Unit,
     onToggleGrayscale: () -> Unit,
     onToggleMirror: () -> Unit,
     onResetPhoto: () -> Unit,
@@ -108,17 +114,28 @@ fun PhotoStage(
         }
     }
 
+    val activePath = photo?.path
+    val scaleState = remember(activePath) { mutableFloatStateOf(1f) }
+    val rotationState = remember(activePath) { mutableFloatStateOf(0f) }
+    val offsetState = remember(activePath) { mutableStateOf(Offset.Zero) }
+    val zoomed = scaleState.value > 1.01f
+
+    val resetView = {
+        scaleState.value = 1f
+        rotationState.value = 0f
+        offsetState.value = Offset.Zero
+    }
+
     Column(modifier = modifier) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(24.dp))
+                .fillMaxSize()
+                .clip(RoundedCornerShape(22.dp))
                 .background(Color(0xFF0B0B10))
                 .border(
                     1.dp,
-                    MaterialTheme.colorScheme.outlineVariant,
-                    RoundedCornerShape(24.dp),
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                    RoundedCornerShape(22.dp),
                 ),
         ) {
             if (photo == null) {
@@ -130,6 +147,9 @@ fun PhotoStage(
                     photosCount = photos.size,
                     currentIndex = currentIndex,
                     onSelectPhoto = onSelectPhoto,
+                    scaleState = scaleState,
+                    rotationState = rotationState,
+                    offsetState = offsetState,
                     modifier = Modifier.fillMaxSize(),
                 )
 
@@ -157,56 +177,108 @@ fun PhotoStage(
                         .padding(8.dp),
                 )
 
-                RoundIconButton(
-                    icon = Icons.Filled.Fullscreen,
-                    description = "На весь экран",
-                    onClick = { fullscreen = true },
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp),
-                )
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    RoundIconButton(
+                        icon = if (effectsEnabled) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                        description = if (effectsEnabled) "Показать оригинал" else "Показать эффекты",
+                        active = effectsEnabled,
+                        onClick = onToggleEffects,
+                    )
+                }
 
-                Surface(
-                    onClick = onToggleEffects,
-                    shape = RoundedCornerShape(50),
-                    color = Color.Black.copy(alpha = 0.5f),
-                    contentColor = Color.White,
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 8.dp, top = 56.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    EditorTool(
+                        icon = if (zoomed) Icons.Filled.ZoomOut else Icons.Filled.ZoomIn,
+                        label = if (zoomed) "Уменьшить" else "Увеличить",
+                        active = zoomed,
+                        onClick = {
+                            if (zoomed) {
+                                resetView()
+                            } else {
+                                scaleState.value = 2f
+                            }
+                        },
+                    )
+                    EditorTool(
+                        icon = Icons.Filled.FilterBAndW,
+                        label = "Ч/Б",
+                        active = photo.grayscale,
+                        onClick = onToggleGrayscale,
+                    )
+                    EditorTool(
+                        icon = Icons.Filled.Flip,
+                        label = "Зеркало",
+                        active = photo.mirrored,
+                        onClick = onToggleMirror,
+                    )
+                    EditorTool(
+                        icon = Icons.Filled.RestartAlt,
+                        label = "Сброс",
+                        onClick = {
+                            resetView()
+                            onResetPhoto()
+                        },
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .fillMaxHeight()
+                        .padding(end = 8.dp, top = 56.dp, bottom = 62.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    VerticalSlider(
+                        icon = Icons.Filled.BrightnessMedium,
+                        label = "Яркость",
+                        value = photo.brightness,
+                        range = -1f..1f,
+                        onValueChange = onBrightness,
+                        onValueChangeFinished = onCommitEdits,
+                        modifier = Modifier.weight(1f),
+                    )
+                    VerticalSlider(
+                        icon = Icons.Filled.Contrast,
+                        label = "Контраст",
+                        value = photo.contrast,
+                        range = 0.4f..2.2f,
+                        onValueChange = onContrast,
+                        onValueChangeFinished = onCommitEdits,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 8.dp),
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Visibility,
-                            contentDescription = null,
-                            tint = if (effectsEnabled) Color(0xFF9D8CFF) else Color.White.copy(alpha = 0.6f),
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            text = if (effectsEnabled) "Эффекты вкл." else "Оригинал",
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
+                    EditorBarButton(
+                        icon = Icons.Filled.AddPhotoAlternate,
+                        label = if (photosRemaining > 0) "Загрузить фото" else "Лимит",
+                        onClick = { launchPicker() },
+                    )
+                    EditorBarButton(
+                        icon = Icons.Filled.Fullscreen,
+                        label = "На весь экран",
+                        onClick = { fullscreen = true },
+                    )
                 }
             }
-        }
-
-        if (photo != null) {
-            Spacer(Modifier.height(8.dp))
-            PhotoToolsBar(
-                photo = photo,
-                photosRemaining = photosRemaining,
-                onPick = { launchPicker() },
-                onBrightness = onBrightness,
-                onContrast = onContrast,
-                onToggleGrayscale = onToggleGrayscale,
-                onToggleMirror = onToggleMirror,
-                onResetPhoto = onResetPhoto,
-            )
         }
     }
 
@@ -247,6 +319,9 @@ fun PhotoStage(
                     photosCount = photos.size,
                     currentIndex = currentIndex,
                     onSelectPhoto = onSelectPhoto,
+                    scaleState = scaleState,
+                    rotationState = rotationState,
+                    offsetState = offsetState,
                     modifier = Modifier.fillMaxSize(),
                 )
                 RoundIconButton(
@@ -263,65 +338,7 @@ fun PhotoStage(
 }
 
 @Composable
-private fun PhotoToolsBar(
-    photo: PhotoItem,
-    photosRemaining: Int,
-    onPick: () -> Unit,
-    onBrightness: (Float) -> Unit,
-    onContrast: (Float) -> Unit,
-    onToggleGrayscale: () -> Unit,
-    onToggleMirror: () -> Unit,
-    onResetPhoto: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            ToolChip(
-                icon = Icons.Filled.AddPhotoAlternate,
-                label = if (photosRemaining > 0) "Добавить" else "Лимит",
-                enabled = photosRemaining > 0,
-                onClick = onPick,
-            )
-            ToolChip(
-                Icons.Filled.FilterBAndW,
-                "Ч/Б",
-                active = photo.grayscale,
-                onClick = onToggleGrayscale,
-            )
-            ToolChip(
-                Icons.Filled.Flip,
-                "Зеркало",
-                active = photo.mirrored,
-                onClick = onToggleMirror,
-            )
-            ToolChip(Icons.Filled.RestartAlt, "Сброс", onClick = onResetPhoto)
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CompactSlider(
-                icon = Icons.Filled.BrightnessMedium,
-                label = "Яркость",
-                value = photo.brightness,
-                range = -1f..1f,
-                onValueChange = onBrightness,
-                modifier = Modifier.weight(1f),
-            )
-            CompactSlider(
-                icon = Icons.Filled.Contrast,
-                label = "Контраст",
-                value = photo.contrast,
-                range = 0.4f..2.2f,
-                onValueChange = onContrast,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ToolChip(
+private fun EditorTool(
     icon: ImageVector,
     label: String,
     active: Boolean = false,
@@ -333,69 +350,172 @@ private fun ToolChip(
             if (enabled) onClick()
         },
         enabled = enabled,
-        shape = RoundedCornerShape(50),
-        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-        else MaterialTheme.colorScheme.surfaceContainerLow,
-        contentColor = if (active) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-        border = androidx.compose.foundation.BorderStroke(
+        shape = RoundedCornerShape(12.dp),
+        color = if (active) MaterialTheme.colorScheme.primary
+        else Color.Black.copy(alpha = 0.45f),
+        contentColor = when {
+            !enabled -> Color.White.copy(alpha = 0.35f)
+            active -> MaterialTheme.colorScheme.onPrimary
+            else -> Color.White.copy(alpha = 0.85f)
+        },
+        border = BorderStroke(
             1.dp,
-            if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-            else MaterialTheme.colorScheme.outlineVariant,
+            if (active) MaterialTheme.colorScheme.primary
+            else Color.White.copy(alpha = 0.12f),
         ),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier
+                .width(78.dp)
+                .padding(vertical = 8.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(15.dp))
-            Spacer(Modifier.width(5.dp))
+            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
             )
         }
     }
 }
 
 @Composable
-private fun CompactSlider(
+private fun VerticalSlider(
     icon: ImageVector,
     label: String,
     value: Float,
     range: ClosedFloatingPointRange<Float>,
     onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+    val trackColor = Color.White.copy(alpha = 0.18f)
+    val fillColor = MaterialTheme.colorScheme.primary
+    val start = range.start
+    val end = range.endInclusive
+    val changeValue by rememberUpdatedState(onValueChange)
+    val changeFinished by rememberUpdatedState(onValueChangeFinished)
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color.Black.copy(alpha = 0.55f),
+        contentColor = Color.White,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)),
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(52.dp)
+                .fillMaxHeight()
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 11.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .pointerInput(start, end) {
+                        fun update(y: Float) {
+                            val h = size.height.toFloat()
+                            if (h <= 0f) return
+                            val f = 1f - (y.coerceIn(0f, h) / h)
+                            changeValue(start + f * (end - start))
+                        }
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            update(down.position.y)
+                            down.consume()
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.pressed } ?: break
+                                update(change.position.y)
+                                change.consume()
+                            }
+                            changeFinished()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val x = size.width / 2f
+                    val top = 7.dp.toPx()
+                    val bottom = size.height - 7.dp.toPx()
+                    drawLine(
+                        color = trackColor,
+                        start = Offset(x, top),
+                        end = Offset(x, bottom),
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round,
+                    )
+                    val knobY = bottom - fraction * (bottom - top)
+                    drawLine(
+                        color = fillColor,
+                        start = Offset(x, knobY),
+                        end = Offset(x, bottom),
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round,
+                    )
+                    drawCircle(color = Color.White, radius = 6.dp.toPx(), center = Offset(x, knobY))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditorBarButton(
+    icon: ImageVector,
+    label: String,
+    active: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        onClick = {
+            if (enabled) onClick()
+        },
+        enabled = enabled,
+        shape = RoundedCornerShape(10.dp),
+        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+        else Color.Black.copy(alpha = 0.5f),
+        contentColor = when {
+            !enabled -> Color.White.copy(alpha = 0.35f)
+            active -> Color(0xFFB9A9FF)
+            else -> Color.White.copy(alpha = 0.9f)
+        },
+        border = BorderStroke(
+            1.dp,
+            if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+            else Color.White.copy(alpha = 0.12f),
+        ),
         modifier = modifier,
     ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(13.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Slider(
-                value = value,
-                onValueChange = onValueChange,
-                valueRange = range,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(22.dp),
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -407,12 +527,19 @@ private fun RoundIconButton(
     description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    active: Boolean = false,
 ) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
-        color = Color.Black.copy(alpha = 0.5f),
-        contentColor = Color.White,
+        color = if (active) MaterialTheme.colorScheme.primary
+        else Color.Black.copy(alpha = 0.5f),
+        contentColor = if (active) MaterialTheme.colorScheme.onPrimary else Color.White,
+        border = BorderStroke(
+            1.dp,
+            if (active) MaterialTheme.colorScheme.primary
+            else Color.White.copy(alpha = 0.12f),
+        ),
         modifier = modifier,
     ) {
         Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
@@ -428,21 +555,24 @@ private fun PhotoCanvas(
     photosCount: Int,
     currentIndex: Int,
     onSelectPhoto: (Int) -> Unit,
+    scaleState: MutableFloatState,
+    rotationState: MutableFloatState,
+    offsetState: MutableState<Offset>,
     modifier: Modifier = Modifier,
 ) {
-    var scale by remember(photo.path) { mutableFloatStateOf(1f) }
-    var rotation by remember(photo.path) { mutableFloatStateOf(0f) }
-    var offset by remember(photo.path) { mutableStateOf(Offset.Zero) }
+    val scale by scaleState
+    val rotation by rotationState
+    val offset by offsetState
     var lastTapAt by remember(photo.path) { mutableLongStateOf(0L) }
     val swipeThreshold = with(LocalDensity.current) { 26.dp.toPx() }
 
     val toggleZoom = {
-        if (scale > 1.01f) {
-            scale = 1f
-            offset = Offset.Zero
-            rotation = 0f
+        if (scaleState.floatValue > 1.01f) {
+            scaleState.floatValue = 1f
+            offsetState.value = Offset.Zero
+            rotationState.floatValue = 0f
         } else {
-            scale = 2f
+            scaleState.floatValue = 2f
         }
     }
 
@@ -466,10 +596,9 @@ private fun PhotoCanvas(
                 var lastSwipeAt = 0L
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    var zoomed = scale > 1.01f
+                    var zoomed = scaleState.floatValue > 1.01f
                     var swiped = false
                     var accumulatedX = 0f
-                    var lastEventTime = down.uptimeMillis
                     var tapped = true
 
                     do {
@@ -483,17 +612,17 @@ private fun PhotoCanvas(
                         if (pressedCount >= 2) {
                             tapped = false
                             zoomed = true
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                            rotation += rotationDelta
-                            offset += pan
+                            scaleState.floatValue = (scaleState.floatValue * zoom).coerceIn(1f, 5f)
+                            rotationState.floatValue += rotationDelta
+                            offsetState.value += pan
                             changes.forEach { if (it.pressed) it.consume() }
                         } else if (pressedCount == 1) {
                             val change = changes.first { it.pressed }
                             val delta = change.positionChange()
                             if (delta != Offset.Zero) {
                                 tapped = false
-                                if (zoomed || scale > 1.01f) {
-                                    offset += delta
+                                if (zoomed || scaleState.floatValue > 1.01f) {
+                                    offsetState.value += delta
                                     change.consume()
                                 } else {
                                     accumulatedX += delta.x
@@ -510,17 +639,15 @@ private fun PhotoCanvas(
                                 }
                             }
                         }
-
-                        lastEventTime = event.changes.firstOrNull()?.uptimeMillis ?: lastEventTime
                     } while (event.changes.any { it.pressed })
 
                     if (tapped) {
                         handleTap()
                     }
 
-                    if (scale <= 1.01f) {
-                        offset = Offset.Zero
-                        rotation = 0f
+                    if (scaleState.floatValue <= 1.01f) {
+                        offsetState.value = Offset.Zero
+                        rotationState.floatValue = 0f
                     }
                 }
             },
@@ -533,7 +660,7 @@ private fun PhotoCanvas(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer(
-                    scaleX = scale * if (photo.mirrored) -1f else 1f,
+                    scaleX = scale * if (photo.mirrored && effectsEnabled) -1f else 1f,
                     scaleY = scale,
                     rotationZ = rotation,
                     translationX = offset.x,

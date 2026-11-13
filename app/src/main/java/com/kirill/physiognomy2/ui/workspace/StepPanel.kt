@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.kirill.physiognomy2.data.AnswerOption
 import com.kirill.physiognomy2.data.PhysiognomyCatalog
 import com.kirill.physiognomy2.data.Step
+import com.kirill.physiognomy2.data.TraitReading
 import com.kirill.physiognomy2.ui.components.FeatureArt
 import com.kirill.physiognomy2.ui.components.FeatureArtKind
 
@@ -128,6 +129,8 @@ fun StepPanel(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(8.dp))
+            ReadingHeader(stepNumber = step.number, questionId = question.id)
 
             if (step.questions.size > 1) {
                 Spacer(Modifier.height(10.dp))
@@ -288,6 +291,44 @@ fun featureKindFor(stepNumber: Int): FeatureArtKind = when (stepNumber) {
     24 -> FeatureArtKind.Profile
     25 -> FeatureArtKind.Profile
     else -> FeatureArtKind.HeadShape
+}
+
+@Composable
+private fun ReadingHeader(stepNumber: Int, questionId: String) {
+    val area = TraitReading.areaTitleFor(stepNumber)
+    val reading = TraitReading.readingFor(stepNumber, questionId)
+
+    Row(verticalAlignment = Alignment.Top) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = reading,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (TraitReading.isUnverified(questionId)) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = "Дополнение приложения",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                )
+            }
+        }
+        if (area.isNotEmpty()) {
+            Spacer(Modifier.width(8.dp))
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                contentColor = MaterialTheme.colorScheme.primary,
+            ) {
+                Text(
+                    text = area,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable

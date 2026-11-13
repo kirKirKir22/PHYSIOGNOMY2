@@ -91,8 +91,9 @@ fun HelpScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             number = "2",
             icon = Icons.Filled.BrightnessMedium,
             title = "Подготовьте снимок",
-            text = "Яркость и контраст, ч/б и зеркало помогают разглядеть детали." +
-                    " Кнопка «Эффекты» возвращает оригинал для сравнения.",
+            text = "Кнопки слева: «Увеличить», «Ч/Б», «Зеркало» и «Сброс». " +
+                    "Справа — ползунки «Яркость» и «Контраст»; касание сразу задаёт значение, а движение пальцем — плавно. " +
+                    "«Сброс» возвращает и масштаб, и все эффекты. Кнопка с глазом показывает оригинал для сравнения.",
         )
         HelpStep(
             number = "3",
@@ -153,7 +154,7 @@ fun HelpScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(18.dp))
         Text(
-            text = "Материалы основаны на книге Мэк Фулфер «Искусство чтения по лицу» (иллюстрированная энциклопедия физиогномики).",
+            text = "Материалы основаны на наблюдениях физиогномики за чертами лица.",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
         )

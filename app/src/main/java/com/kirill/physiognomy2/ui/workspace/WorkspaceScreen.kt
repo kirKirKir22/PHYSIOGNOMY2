@@ -39,12 +39,13 @@ fun WorkspaceScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 10.dp),
     ) {
-        val photoHeight = if (viewModel.currentPhoto == null) {
-            (maxHeight * 0.3f).coerceIn(190.dp, 250.dp)
+        val hasPhoto = viewModel.currentPhoto != null
+        val photoHeight = if (hasPhoto) {
+            maxHeight * 0.46f
         } else {
-            (maxHeight * 0.4f).coerceIn(240.dp, 400.dp)
+            (maxHeight * 0.3f).coerceIn(190.dp, 250.dp)
         }
 
         Column(
@@ -62,6 +63,7 @@ fun WorkspaceScreen(
                 onSelectPhoto = viewModel::selectPhoto,
                 onBrightness = viewModel::setBrightness,
                 onContrast = viewModel::setContrast,
+                onCommitEdits = viewModel::commitPhotoEdits,
                 onToggleGrayscale = viewModel::toggleGrayscale,
                 onToggleMirror = viewModel::toggleMirror,
                 onResetPhoto = viewModel::resetPhotoEffects,

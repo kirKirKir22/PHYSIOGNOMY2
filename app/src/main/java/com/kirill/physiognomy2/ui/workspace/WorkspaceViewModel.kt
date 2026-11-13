@@ -329,26 +329,53 @@ class WorkspaceViewModel(application: Application) : AndroidViewModel(applicatio
         persistPhotos()
     }
 
-    fun setBrightness(value: Float) = updateCurrentPhoto { it.copy(brightness = value.coerceIn(-1f, 1f)) }
+    fun setBrightness(value: Float) {
+        ensureEffectsEnabled()
+        updateCurrentPhoto(persist = false) { it.copy(brightness = value.coerceIn(-1f, 1f)) }
+    }
 
-    fun setContrast(value: Float) = updateCurrentPhoto { it.copy(contrast = value.coerceIn(0.3f, 2.5f)) }
+    fun setContrast(value: Float) {
+        ensureEffectsEnabled()
+        updateCurrentPhoto(persist = false) { it.copy(contrast = value.coerceIn(0.3f, 2.5f)) }
+    }
 
-    fun toggleGrayscale() = updateCurrentPhoto { it.copy(grayscale = !it.grayscale) }
+    fun commitPhotoEdits() = persistPhotos()
 
-    fun toggleMirror() = updateCurrentPhoto { it.copy(mirrored = !it.mirrored) }
+    fun toggleGrayscale() {
+        ensureEffectsEnabled()
+        updateCurrentPhoto { it.copy(grayscale = !it.grayscale) }
+    }
 
-    fun resetPhotoEffects() = updateCurrentPhoto { PhotoItem(it.path) }
+    fun toggleMirror() {
+        ensureEffectsEnabled()
+        updateCurrentPhoto { it.copy(mirrored = !it.mirrored) }
+    }
+
+    fun resetPhotoEffects() {
+        ensureEffectsEnabled()
+        updateCurrentPhoto { PhotoItem(it.path) }
+    }
 
     fun toggleEffects() {
         effectsEnabled = !effectsEnabled
         prefs.edit().putBoolean(KEY_EFFECTS, effectsEnabled).apply()
     }
 
-    private inline fun updateCurrentPhoto(transform: (PhotoItem) -> PhotoItem) {
+    private fun ensureEffectsEnabled() {
+        if (!effectsEnabled) {
+            effectsEnabled = true
+            prefs.edit().putBoolean(KEY_EFFECTS, true).apply()
+        }
+    }
+
+    private inline fun updateCurrentPhoto(
+        persist: Boolean = true,
+        transform: (PhotoItem) -> PhotoItem,
+    ) {
         val index = currentPhotoIndex
         val photo = photos.getOrNull(index) ?: return
         photos[index] = transform(photo)
-        persistPhotos()
+        if (persist) persistPhotos()
     }
 
     fun saveCurrentProfile(name: String? = null): Profile {

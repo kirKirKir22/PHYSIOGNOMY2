@@ -26,6 +26,28 @@ object ResultComposer {
                 .map { step to it }
         }
 
+    data class ReadingBlock(
+        val area: ReadingArea,
+        val entries: List<Answered>,
+        val terms: List<String>,
+    )
+
+    /**
+     * Группирует отмеченные черты по смысловым областям.
+     * Области без ответов не попадают в результат.
+     */
+    fun readingBlocks(answers: Map<String, String>): List<ReadingBlock> {
+        val answered = answered(answers)
+        return ReadingArea.entries.mapNotNull { area ->
+            val entries = answered.filter { it.step.number in area.stepNumbers }
+            if (entries.isEmpty()) return@mapNotNull null
+            val terms = entries
+                .flatMap { entry -> TraitReading.termsFor(entry.step.number, entry.question.id) }
+                .distinct()
+            ReadingBlock(area = area, entries = entries, terms = terms)
+        }.sortedByDescending { it.entries.size }
+    }
+
     fun profileTitle(answers: Map<String, String>): String {
         val values = answered(answers).flatMap { it.option.traits }
         val countable = values
@@ -80,7 +102,15 @@ object ResultComposer {
             builder.appendLine()
         }
 
-        builder.appendLine("ПО ЧЕРТАМ")
+        builder.appendLine("ЧТО ЧИТАЕТСЯ В ПОРТРЕТЕ")
+        readingBlocks(answers).forEach { block ->
+            builder.appendLine()
+            builder.appendLine("${block.area.title} · ${block.entries.size} ${traitWord(block.entries.size)}")
+            builder.appendLine("  ${block.terms.joinToString(", ")}")
+        }
+        builder.appendLine()
+
+        builder.appendLine("ЧТО ОТМЕЧЕНО")
         var currentStep = -1
         answered.forEach { entry ->
             if (entry.step.number != currentStep) {
@@ -109,7 +139,7 @@ object ResultComposer {
         }
 
         builder.appendLine()
-        builder.append("Составлено в приложении «Физиогномика» по мотивам книги Мэк Фулфер «Искусство чтения по лицу».")
+        builder.append("Составлено в приложении «Физиогномика».")
         return builder.toString().trimEnd()
     }
 
@@ -198,6 +228,17 @@ object ResultComposer {
         sentences += "Помните, что физиогномика — язык наблюдений, а не приговор: лицо меняется вместе с опытом и привычками."
 
         return sentences.joinToString(" ")
+    }
+
+    private fun traitWord(count: Int): String {
+        val mod100 = count % 100
+        val mod10 = count % 10
+        return when {
+            mod100 in 11..14 -> "черт"
+            mod10 == 1 -> "черта"
+            mod10 in 2..4 -> "черты"
+            else -> "черт"
+        }
     }
 
     private fun score(text: String, vararg roots: String): Int =
